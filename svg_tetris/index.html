@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<!--
+To change this license header, choose License Headers in Project Properties.
+To change this template file, choose Tools | Templates
+and open the template in the editor.
+-->
+<html>
+    <head>
+        <title>Coding Challenge #1</title>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width">
+        <script type="text/javascript" src="/js/libs/jquery/jquery.js"></script>
+        <script type="text/javascript" src="/js/libs/svg.min.js"></script>
+
+    </head>
+    <body>
+        <h1>Coding Challenge #1</h1> <button id='start'>Start</button>
+        <style>
+            body {
+                text-align:center;
+            }
+        </style>        
+        <div id='canvas'>
+
+        </div>
+
+
+        <script>
+            (function($) {
+                var getRandomColor = function() {
+                    var colors = [
+                        '#48657C',
+                        '#758697',
+                        '#FBDA98',
+                        '#F0DCC6',
+                        '#CDB891'
+                    ];
+                    return colors[Math.floor(Math.random() * colors.length)];
+                };
+                var currentTurnTime = 200;
+                var currentItem = undefined;
+
+                var createCell = function(x, y, color, attr) {
+                    var cell = {
+                        x: x,
+                        y: y,
+                        color: color,
+                        shape: (color == 0 ? null : draw.rect(squareWidth - 2, squareHeight - 2).fill(color).attr(attr).move(2 + x * squareWidth, 2 + y * squareHeight))
+                    };
+                    cell.moveShapeToCurrentPosition = function() {
+                        if (cell.shape !== null) {
+                            cell.shape.move(2 + cell.x * squareWidth, 2 + cell.y * squareHeight);
+                        }
+                    };
+                    return cell;
+                };
+                var createItemCell = function(x, y, color) {
+                    return createCell(x, y, color, {'fill-opacity': 0.6, color: color, 'stroke-width': 0, radius: 32});
+                };
+                var createBoardCell = function(x, y, color) {
+                    return createCell(x, y, color, {'fill-opacity': 0.8, color: color, 'stroke-width': 0, radius: 8});
+                };
+                var itemStates = {
+                    ok: 1,
+                    illegal: 0
+                };
+                var getCellMatrix = function() {
+                    var items = [
+                        [
+                            [1, 1],
+                            [1, 1]
+                        ],
+                        [
+                            [1, 1, 0],
+                            [0, 1, 1],
+                            [0, 0, 0]
+                        ],
+                        [
+                            [0, 1, 1],
+                            [1, 1, 0],
+                            [0, 0, 0]
+                        ],
+                        [
+                            [0, 1, 0],
+                            [1, 1, 1],
+                            [0, 0, 0]
+                        ],
+                        [
+                            [1, 1, 1, 1],
+                            [0, 0, 0, 0],
+                            [0, 0, 0, 0],
+                            [0, 0, 0, 0]
+                        ],
+                        [
+                            [1, 1, 1],
+                            [0, 0, 1],
+                            [0, 0, 0]
+                        ],
+                        [
+                            [1, 1, 1],
+                            [1, 0, 0],
+                            [0, 0, 0]
+                        ]
+                    ];
+                    return items[Math.floor(Math.random() * items.length)];
+                };
+
+                var createNewItem = function() {
+                    var item = {
+                        cellMatrix: getCellMatrix(),
+                        position: {
+                            x: 4,
+                            y: -3
+                        }
+                    };
+                    var createCellsFromMatrix = function() {
+                        cells = [];
+                        var color = getRandomColor();
+                        for (var i = 0; i < item.cellMatrix.length; i++) {
+                            for (var j = 0; j < item.cellMatrix[i].length; j++) {
+                                if (item.cellMatrix[i][j] === 1) {
+                                    var newCell = createItemCell(j, i, color);
+                                    cells.push(newCell);
+                                }
+                            }
+                        }
+                        return cells;
+                    };
+                    item.rotate = function() {
+                        var size = item.cells.reduce(function(max, cell) {
+                            if (max < cell.y)
+                                max = cell.y;
+                            return max;
+                        }, 0);
+                        item.cells.forEach(function(cell) {
+                            var tempX = cell.y;
+                            cell.y = cell.x;
+                            cell.x = size - tempX;
+                            cell.moveShapeToCurrentPosition();
+                        });
+
+                    };
+                    var createSvgForItem = function() {
+                        var shape = draw.group().move(0, -10000);
+                        return shape;
+                    };
+                    var isMovable = function(newPos) {
+                        var res = item.cells.reduce(function(isMovable, cell) {
+                            if (!isMovable)
+                                return isMovable;
+                            var curX = cell.x + newPos.x;
+                            var curY = cell.y + newPos.y;
+                            if (curY >= 0) {
+                                var boardCell = board.get(curX, curY);
+                                if (boardCell === undefined || boardCell.color !== 0)
+                                    return false;
+                            }
+                            return true;
+                        }, true);
+                        return res;
+                    };
+                    item.getItemState = function() {
+                        var maxY = item.cells.reduce(function(curMax, cell) {
+                            if (curMax < item.position.y + cell.y)
+                                return cell.y + item.position.y;
+                            return curMax;
+                        }, 0);
+                        if (maxY <= 1 && !item._itemMoved)
+                            return itemStates.illegal;
+                        else
+                            return itemStates.ok;
+
+                    };
+                    item._itemMoved = true;
+                    item.didItemMove = function() {
+                        return item._itemMoved;
+                    };
+                    var moveTo = function(newPos) {
+                        item.position = newPos;
+                        item.shape.move(item.position.x * squareWidth, item.position.y * squareHeight);
+                    }
+                    item.moveDown = function() {
+                        var newPos = {
+                            x: item.position.x,
+                            y: item.position.y + 1
+                        };
+                        item._itemMoved = isMovable(newPos);
+                        if (item._itemMoved === false) {
+                            return;
+                        }
+                        moveTo(newPos);
+                    };
+                    item.moveDownFull = function() {
+                        var newPos = {
+                            x: item.position.x,
+                            y: item.position.y + 1
+                        };
+                        while (isMovable(newPos)) {
+                            newPos.y++;
+                        }
+                        newPos.y--;
+                        item._itemMoved = false;
+                        moveTo(newPos);
+                    };
+                    item.move = function(dx, dy) {
+                        var newPos = {
+                            x: item.position.x + dx,
+                            y: item.position.y + dy
+                        };
+                        if (isMovable(newPos)) {
+                            moveTo(newPos);
+                        }
+                    };
+
+                    item.destroy = function() {
+                        item.cells.forEach(function(cell) {
+                            delete cell;
+                        });
+                        delete item.cells;
+                    };
+                    item.remove = function() {
+                        item.cells.forEach(function(cell) {
+                            cell.shape.remove();
+                        });
+                        item.shape.remove();
+                    };
+                    var addCellShapesToItemShape = function() {
+                        item.cells.forEach(function(cell) {
+                            item.shape.add(cell.shape);
+                        });
+                    };
+
+
+                    item.shape = createSvgForItem();
+                    item.cells = createCellsFromMatrix();
+                    addCellShapesToItemShape();
+
+                    return item;
+                };
+                var copyItemToBoard = function(item) {
+                    item.cells.forEach(function(cell) {
+                        board.set(item.position.x + cell.x, item.position.y + cell.y, cell.color);
+                    });
+                    item.shape.remove();
+                };
+                var gameStates = {
+                    running: 0,
+                    pause: 1,
+                    gameOver: 2
+                };
+                var gameState;
+                var updateGame = function() {
+                    if (currentItem === undefined) {
+                        currentItem = createNewItem();
+                    }
+                    var curTime = t();
+                    var delta = curTime - lastTime;
+                    if (delta > currentTurnTime) {
+                        currentItem.moveDown();
+                        if (!currentItem.didItemMove()) {
+                            var currentItemState = currentItem.getItemState();
+                            copyItemToBoard(currentItem);
+                            if (currentItemState === itemStates.illegal) {
+                                console.log('Game over');
+                                gameState = gameStates.gameOver;
+                            }
+                            currentItem.remove();
+                            currentItem.destroy();
+                            delete currentItem;
+                            currentItem = undefined;
+
+                            // Check for rows to remove
+                            board.makeTurn();
+
+                        }
+                        lastTime = curTime;
+                    }
+                    if (gameState === gameStates.running)
+                        animFrame(updateGame);
+
+                };
+                var board;
+
+                var t = function() {
+                    return new Date().getTime();
+                };
+                var lastTime;
+                var resetBoard = function() {
+                    board = {
+                        cells: [],
+                        shape: draw.group()
+
+                    };
+                    for (var i = 0; i < numLines; i++) {
+                        for (var j = 0; j < numSquaresPerLine; j++) {
+                            board.cells.push(createBoardCell(j, i, 0));
+                        }
+                    }
+                    var lookForFullLines = function() {
+                        var lineNumbers = board.cells.reduce(function(lineNumberArray, cell) {
+                            if (lineNumberArray.indexOf(cell.y) < 0)
+                                lineNumberArray.push(cell.y);
+                            return lineNumberArray;
+                        }, []);
+                        var linesToRemove = lineNumbers.map(function(y) {
+                            var numFilled = board.cells.filter(function(cell) {
+                                return cell.y === y;
+                            }).reduce(function(count, cell) {
+                                return count + (cell.color != 0);
+                            }, 0);
+                            return {y: y, filledCount: numFilled};
+                        }).reduce(function(linesToRemove, lineInfo) {
+                            if (lineInfo.filledCount == numSquaresPerLine)
+                                linesToRemove.push(lineInfo);
+                            return linesToRemove;
+                        }, []);
+                        return linesToRemove;
+                    };
+                    board.get = function(x, y) {
+                        var found = board.cells.filter(function(cell) {
+                            return cell.x == x && cell.y == y;
+                        });
+                        return found && found.pop();
+                    };
+                    board.set = function(x, y, val) {
+                        var cell = board.get(x, y);
+                        board.cells.splice(board.cells.indexOf(cell), 1);
+                        var newCell = createBoardCell(x, y, val);
+                        board.shape.add(newCell.shape);
+                        board.cells.push(newCell);
+                    };
+
+                    board.makeTurn = function() {
+                        var linesToRemove = lookForFullLines();
+                        linesToRemove.forEach(function(line) {
+
+                            board.cells.filter(function(cell) {
+                                return cell.y === line.y;
+                            }).forEach(function(cell) {
+                                cell.shape.remove();
+                                board.cells.splice(board.cells.indexOf(cell), 1);
+                            });
+
+                            board.cells.filter(function(cell) {
+                                return cell.y < line.y;
+                            }).map(function(cell) {
+                                cell.y++;
+                                cell.moveShapeToCurrentPosition();
+                                return cell;
+                            });
+                            for (var i = 0; i < numSquaresPerLine; i++) {
+                                board.cells.push(createBoardCell(i, 0, 0));
+                            }
+                        });
+
+                    };
+                };
+                var setupKeyListeners = function() {
+                    $(document).keydown(function(event) {
+                        var preventedKeys = [37, 38, 39];
+                        if (preventedKeys.indexOf(event.keyCode) >= 0)
+                            event.preventDefault();
+                        if (currentItem !== undefined) {
+                            switch (event.keyCode) {
+                                case 37:
+                                    currentItem.move(-1, 0);
+                                    break;
+                                case 39:
+                                    currentItem.move(1, 0);
+                                    break;
+                                case 38:
+                                    currentItem.rotate();
+                                    break;
+                                    /*                         case 32:
+                                     currentItem.moveDownFull();*/
+                            }
+                        }
+                    });
+                };
+                var startGame = function() {
+                    resetBoard();
+                    setupKeyListeners();
+                    lastTime = t();
+                    gameState = gameStates.running;
+                    animFrame(updateGame);
+                };
+                var animFrame;
+                var init = function() {
+                    animFrame = window.requestAnimationFrame ||
+                            window.webkitRequestAnimationFrame ||
+                            window.mozRequestAnimationFrame ||
+                            window.oRequestAnimationFrame ||
+                            window.msRequestAnimationFrame ||
+                            null;
+
+                };
+
+                var w = 400;
+                var h = 450;
+                var numSquaresPerLine = 16;
+                var numLines = 16;
+                var squareWidth = w / numSquaresPerLine;
+                var squareHeight = h / numLines;
+                var draw = SVG('canvas').size(w + 4, h + 4);
+                var strokeWidth = 2;
+
+                var rect = draw.rect(w + 4, h + 4).attr({'fill-opacity': 0, 'stroke-width': 2});
+                //var smallRect = draw.rect(squareWidth, squareHeight).attr({ 'fill-opacity': 0, 'stroke-width':1, radius:8 }).move(2,2);
+
+                init();
+                $("#start").click(startGame);
+
+            })(jQuery);
+
+        </script>
+
+    </body>
+</html>
