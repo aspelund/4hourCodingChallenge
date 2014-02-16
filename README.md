@@ -23,6 +23,7 @@ Some examples:
     test("from should return linq-object containing a n object", function(){
         var linq = new JsLinq();
         var numbers = [5,4,1,3,9,8,6,7,2,0];
+        linq.from('n1', numbers);        
         equal(linq.n1, numbers);
     });
     
